@@ -14,7 +14,7 @@ A CLI tool to seamlessly set up Progressive Web App (PWA) functionality in your 
 ## Quick Start
 
 ```bash
-npm i -g simple-pwa
+npm i -g @simplepwa/nextjs-pwa-setup
 ```
 
 ## Prerequisites
