@@ -5,6 +5,109 @@ const path = require("path");
 const { execSync } = require("child_process");
 const prompts = require("prompts");
 const chalk = require("chalk");
+const sharp = require("sharp");
+
+const iconSizes = [
+  { name: "favicon-16x16.ico", size: 16 },
+  { name: "favicon-32x32.ico", size: 32 },
+  { name: "favicon-32x32.png", size: 32 },
+  { name: "favicon-16x16.png", size: 16 },
+  { name: "icon-48x48.png", size: 48 },
+  { name: "icon-72x72.png", size: 72 },
+  { name: "icon-96x96.png", size: 96 },
+  { name: "icon-128x128.png", size: 128 },
+  { name: "icon-144x144.png", size: 144 },
+  { name: "icon-152x152.png", size: 152 },
+  { name: "icon-192x192.png", size: 192 },
+  { name: "icon-384x384.png", size: 384 },
+  { name: "icon-512x512.png", size: 512 },
+  { name: "apple-touch-icon-57x57.png", size: 57 },
+  { name: "apple-touch-icon-60x60.png", size: 60 },
+  { name: "apple-touch-icon-72x72.png", size: 72 },
+  { name: "apple-touch-icon-76x76.png", size: 76 },
+  { name: "apple-touch-icon-114x114.png", size: 114 },
+  { name: "apple-touch-icon-120x120.png", size: 120 },
+  { name: "apple-touch-icon-144x144.png", size: 144 },
+  { name: "apple-touch-icon-152x152.png", size: 152 },
+  { name: "apple-touch-icon-180x180.png", size: 180 },
+  { name: "maskable_icon-192x192.png", size: 192 },
+  { name: "maskable_icon-512x512.png", size: 512 },
+  { name: "og-image.png", size: { width: 1200, height: 630 } },
+  { name: "twitter-card.png", size: { width: 1024, height: 512 } },
+  {
+    name: "iPhone-X-XR-11-Pro-1125x2436.png",
+    size: { width: 1125, height: 2436 },
+  },
+  { name: "iPhone-XR-11-828x1792.png", size: { width: 828, height: 1792 } },
+  {
+    name: "iPhone-XS-Max-11-Pro-Max-1242x2688.png",
+    size: { width: 1242, height: 2688 },
+  },
+  {
+    name: "iPhone-6-6S-7-8-SE-750x1334.png",
+    size: { width: 750, height: 1334 },
+  },
+  {
+    name: "iPad-Mini-Air-Pro-9.7-inch-1536x2048.png",
+    size: { width: 1536, height: 2048 },
+  },
+  {
+    name: "iPad-Pro-11-inch-1668x2388.png",
+    size: { width: 1668, height: 2388 },
+  },
+  {
+    name: "iPad-Pro-12.9-inch-2048x2732.png",
+    size: { width: 2048, height: 2732 },
+  },
+];
+
+async function generateAssets(logoPath, outputPath) {
+  console.log(chalk.blue("\nGenerating PWA assets..."));
+
+  try {
+    // Ensure output directory exists
+    fs.mkdirSync(outputPath, { recursive: true });
+
+    // Read the source image
+    const sourceImage = sharp(logoPath);
+    const metadata = await sourceImage.metadata();
+
+    // Check if image is large enough
+    if (metadata.width < 512 || metadata.height < 512) {
+      throw new Error("Source image should be at least 512x512 pixels");
+    }
+
+    // Generate all icon sizes
+    for (const icon of iconSizes) {
+      const outputFile = path.join(outputPath, icon.name);
+
+      if (typeof icon.size === "number") {
+        // Square icons
+        await sourceImage
+          .resize(icon.size, icon.size, {
+            fit: "contain",
+            background: { r: 255, g: 255, b: 255, alpha: 0 },
+          })
+          .toFile(outputFile);
+      } else {
+        // Rectangle icons (splash screens, social media)
+        await sourceImage
+          .resize(icon.size.width, icon.size.height, {
+            fit: "contain",
+            background: { r: 255, g: 255, b: 255, alpha: 0 },
+          })
+          .toFile(outputFile);
+      }
+
+      console.log(chalk.green(`✓ Generated ${icon.name}`));
+    }
+
+    return true;
+  } catch (error) {
+    console.error(chalk.red(`Error generating assets: ${error.message}`));
+    return false;
+  }
+}
 
 async function detectPackageManager() {
   if (fs.existsSync("yarn.lock")) return "yarn";
@@ -181,8 +284,61 @@ async function main() {
       assetsPath = `public/${customPath.path}`;
     }
 
-    // Ensure assets directory exists
-    if (!fs.existsSync(assetsPath)) {
+    // Ask about asset generation preference
+    const generateNowResponse = await prompts({
+      type: "select",
+      name: "generateNow",
+      message: "Would you like to generate PWA assets now?",
+      choices: [
+        {
+          title: "Yes, I have a logo ready to use",
+          value: "yes",
+          description: "Generate all required PWA assets from your logo",
+        },
+        {
+          title: "No, I'll generate assets later",
+          value: "no",
+          description: "You can use our web tool for generating it",
+        },
+      ],
+    });
+
+    let success = false;
+    if (generateNowResponse.generateNow === "yes") {
+      console.log(chalk.blue("\nLogo path hints:"));
+      console.log("- For logo in current directory: ./logo.png");
+      console.log("- For logo in public folder: ./public/logo.png");
+      console.log("- For logo in other folder: ../path/to/logo.png");
+
+      const logoResponse = await prompts({
+        type: "text",
+        name: "path",
+        message: "Enter the path to your logo (at least 512x512px):",
+        validate: (value) =>
+          fs.existsSync(value)
+            ? true
+            : "File does not exist. Please enter a valid path",
+      });
+
+      if (!logoResponse.path) {
+        throw new Error("Logo path is required for asset generation");
+      }
+
+      // Generate assets
+      success = await generateAssets(logoResponse.path, assetsPath);
+      if (!success) {
+        throw new Error("Failed to generate assets");
+      }
+    } else {
+      console.log(
+        chalk.yellow("\nℹ️  You can generate PWA assets using our web tool:")
+      );
+      console.log("🔗 https://simplepwa.xyz/");
+      console.log(
+        chalk.yellow(`\nOnce generated, place the assets in: ${assetsPath}`)
+      );
+
+      // Create the assets directory even if not generating now
       fs.mkdirSync(assetsPath, { recursive: true });
     }
 
@@ -514,16 +670,23 @@ async function main() {
       ? "src/app/layout.tsx"
       : "app/layout.tsx";
 
-    // Update the README content
+    // Update README content based on generation choice
+    const assetInstructions =
+      generateNowResponse.generateNow === "yes"
+        ? `All required PWA assets have been generated and placed in the ${assetsPath} directory.`
+        : `Generate all required PWA assets using our web tool:
+     1. Visit: https://simplepwa.xyz/
+     2. Upload your logo (at least 512x512px)
+     3. Download the generated assets
+     4. Extract and place all files in the ${assetsPath} directory`;
+
+    // Update README content
     const readmeContent = `# PWA Setup Instructions
 
 Your Next.js app has been configured as a Progressive Web App (PWA). Here's what you need to know:
 
-1. Required Assets
-   You'll need various icons and splash screens for your PWA. You can generate all required assets using our online PWA Asset Generator:
-   [PWA Asset Generator](https://simplepwa.xyz/)
-
-   After generating the assets, place them in your ${assetsPath} directory. The required assets include:
+1. Assets
+   All required PWA assets have been generated and placed in the ${assetsPath} directory, including:
    - Favicons (16x16, 32x32)
    - Standard icons (48x48 to 512x512)
    - Apple Touch Icons (57x57 to 180x180)
@@ -531,11 +694,13 @@ Your Next.js app has been configured as a Progressive Web App (PWA). Here's what
    - Social media images (og-image, twitter-card)
    - Device-specific splash screens (iPhone and iPad variants)
 
+   To regenerate assets, you can run this CLI tool again with a different logo.
+
 2. Configuration Files
    - manifest.json has been created in the public directory
    - ${updatedConfigFile} has been updated with PWA configuration
 
-3. Additional Setup
+3. Testing
    - PWA is disabled in development by default
    - To test PWA features, build and start the production server:
      \`\`\`bash
@@ -609,19 +774,22 @@ Your Next.js app has been configured as a Progressive Web App (PWA). Here's what
    </head>
    \`\`\`
 
-Note: For App Router (app directory), it's recommended to use the metadata object approach as it's the Next.js 13+ preferred method.
-
-For more information about PWA features and configuration, visit:
-https://github.com/shadowwalker/next-pwa
 `;
 
     fs.writeFileSync("PWA_SETUP.md", readmeContent);
 
     console.log(chalk.green("\nPWA setup complete! 🎉"));
     console.log(chalk.yellow("\nNext steps:"));
-    console.log("1. Add the required icons to your assets directory");
-    console.log("2. Check PWA_SETUP.md for detailed instructions");
-    console.log("3. Add the required meta tags to your app");
+    if (generateNowResponse.generateNow === "no") {
+      console.log("1. Generate and add PWA assets using our web tool");
+      console.log(`2. Place the generated assets in ${assetsPath}`);
+      console.log(
+        "3. Add the required meta tags to your app (see PWA_SETUP.md)"
+      );
+    } else {
+      console.log("1. Check PWA_SETUP.md for detailed instructions");
+      console.log("2. Add the required meta tags to your app");
+    }
   } catch (error) {
     console.error(chalk.red(`\nError: ${error.message}`));
     process.exit(1);
