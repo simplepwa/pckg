@@ -1,0 +1,24 @@
+{
+  "name": "simple-pwa",
+  "version": "1.0.0",
+  "description": "CLI tool to set up PWA in Next.js projects",
+  "main": "bin/index.js",
+  "bin": {
+    "nextjs-pwa-setup": "./bin/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simplepwa/pckg.git"
+  },
+  "keywords": ["nextjs", "pwa", "cli", "next-pwa"],
+  "author": "Sabir Khan",
+  "license": "MIT",
+  "dependencies": {
+    "prompts": "^2.4.2",
+    "chalk": "^4.1.2"
+  },
+  "bugs": {
+    "url": "https://github.com/simplepwa/pckg/issues"
+  },
+  "homepage": "https://github.com/simplepwa/pckg#readme"
+}
